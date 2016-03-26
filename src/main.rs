@@ -178,6 +178,14 @@ fn help_command(args: &Vec<String>) {
 fn list_command(args: ListArgs) {
     println!("{:?}", args);
 
+	process::exit(0);
+    // TODO
+}
+
+fn search_command(args: SearchArgs) {
+    println!("{:?}", args);
+
+    process::exit(0);
     // TODO
 }
 
@@ -217,6 +225,20 @@ fn parse_args(mut args: Vec<String>) {
                     // Execute the command
                     list_command(command_args);
                 }
+                Command::Search => {
+                    match args.get(0) {
+                        Some(q) => {
+                            let command_args: SearchArgs = SearchArgs { arg_query: q.clone() };
+
+                            search_command(command_args);
+                        }
+                        None => {
+                            print_help_with_msg(format!("Please provide a search query"),
+                                                String::from(USAGE_SEARCH),
+                                                1)
+                        }
+                    }
+                }
                 _ => println!("{:?}", cmd),
             }
         }
@@ -240,7 +262,7 @@ fn main() {
     match args.len() {
         0 | 1 => println!("{}", USAGE_MAIN),
         _ => {
-        	// Remove the dcs-get command
+            // Remove the dcs-get command
             args.remove(0);
             parse_args(args);
         }
