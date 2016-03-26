@@ -1,4 +1,7 @@
 extern crate rustc_serialize;
+extern crate regex;
+
+use regex::Regex;
 
 use std::str::FromStr;
 use std::process;
@@ -69,6 +72,13 @@ Options:
 	-v, --verbose  Verbose output of the installation process
 	-d, --dry-run  Outputs the files to be installed without installation
 ";
+
+#[derive(Debug, RustcDecodable)]
+struct InstallArgs {
+    flag_v: bool,
+    flag_d: bool,
+    arg_package: Vec<String>,
+}
 
 const USAGE_REMOVE: &'static str = "
 dcs-get remove: Removes the package(s) provided from the current system
@@ -178,11 +188,18 @@ fn help_command(args: &Vec<String>) {
 fn list_command(args: ListArgs) {
     println!("{:?}", args);
 
-	process::exit(0);
+    process::exit(0);
     // TODO
 }
 
 fn search_command(args: SearchArgs) {
+    println!("{:?}", args);
+
+    process::exit(0);
+    // TODO
+}
+
+fn install_command(args: InstallArgs) {
     println!("{:?}", args);
 
     process::exit(0);
@@ -226,9 +243,10 @@ fn parse_args(mut args: Vec<String>) {
                     list_command(command_args);
                 }
                 Command::Search => {
+                    // Use the first argument for the query
                     match args.get(0) {
                         Some(q) => {
-                            let command_args: SearchArgs = SearchArgs { arg_query: q.clone() };
+                            let command_args = SearchArgs { arg_query: q.clone() };
 
                             search_command(command_args);
                         }
@@ -238,6 +256,39 @@ fn parse_args(mut args: Vec<String>) {
                                                 1)
                         }
                     }
+                }
+                Command::Install => {
+                    let verbose_index = args.iter()
+                                            .position(|p| p == "-v" || p == "--verbose");
+                    let dry_run_index = args.iter()
+                                            .position(|p| p == "-d" || p == "--dry-run");
+
+                    // Removes all --verbose/--dry-run/etc. flags
+                    let mut packages = args.to_vec();
+                    packages.retain(|p| p != "-v" && p != "--verbose");
+                    packages.retain(|p| p != "-d" && p != "--dry-run");
+                    // Necessary copy?
+                    let residual = packages.to_vec();
+
+                    // Check if there are any invalid options left i.e.: --v, -f
+                    let opt_regex = Regex::new(r"^-+\w+").unwrap();
+                    let invalid_args: Vec<_> = residual.iter()
+                                                       .filter(|p| opt_regex.is_match(p))
+                                                       .collect();
+                    // Exit if any invalid args are found
+                    if !invalid_args.is_empty() {
+                        print_help_with_msg(format!("Found invalid aruments: {:?}", invalid_args),
+                                            String::from(USAGE_INSTALL),
+                                            1);
+                    }
+
+                    let command_args = InstallArgs {
+                        flag_d: dry_run_index.is_some(),
+                        flag_v: verbose_index.is_some(),
+                        arg_package: packages,
+                    };
+
+                    install_command(command_args);
                 }
                 _ => println!("{:?}", cmd),
             }

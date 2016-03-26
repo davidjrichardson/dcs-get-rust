@@ -5,6 +5,6 @@ authors = ["David Richardson <david@tankski.co.uk>"]
 
 [dependencies]
 clippy = "*"
-docopt = "0.6.78"
+regex = "0.1.58"
 rustc-serialize = "0.3.18"
 termion = { git = "https://github.com/Ticki/termion.git" }
