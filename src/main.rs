@@ -1,9 +1,11 @@
-extern crate docopt;
 extern crate rustc_serialize;
 
 use std::str::FromStr;
+use std::process;
+use std::env;
 
-use docopt::Docopt;
+// Version number specified in the cargo crate
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 const USAGE_MAIN: &'static str = "
 dcs-get: The University of Warwick Computing Society's package manager.
@@ -40,12 +42,22 @@ Options:
 	--type <type>  The type of package to list
 ";
 
+#[derive(Debug, RustcDecodable)]
+struct ListArgs {
+    flag_type: Option<String>,
+}
+
 const USAGE_SEARCH: &'static str = "
 dcs-get search: Searches the package list for a package or packages
 
 Usage:
 	dcs-get search <query>
 ";
+
+#[derive(Debug, RustcDecodable)]
+struct SearchArgs {
+    arg_query: String,
+}
 
 const USAGE_INSTALL: &'static str = "
 dcs-get install: Installs the package(s) provided onto the current system
@@ -89,58 +101,14 @@ Options:
 ";
 
 #[derive(Debug, RustcDecodable)]
-struct Args {
-	arg_args: Vec<String>,
-	arg_command: Option<Command>,
-	flag_v:	bool,
-	flag_version: bool,
-}
-
-#[derive(Debug, RustcDecodable)]
-struct HelpArgs {
-	arg_command: Option<Command>,
-}
-
-#[derive(Debug, RustcDecodable)]
-struct ListArgs {
-	arg_type: Option<String>,
-}
-
-#[derive(Debug, RustcDecodable)]
-struct SearchArgs {
-	arg_query: String,
-}
-
-#[derive(Debug, RustcDecodable)]
-struct InstallArgs {
-	flag_v: bool,
-	flag_d: bool,
-	arg_package: Vec<String>,
-}
-
-#[derive(Debug, RustcDecodable)]
-struct RemoveArgs {
-	flag_verbose: bool,
-	flag_force: bool,
-	flag_prune_deps: bool,
-	flag_dry_run: bool,
-	arg_package: Vec<String>,
-}
-
-#[derive(Debug, RustcDecodable)]
-struct GensymlinksArgs {
-	arg_package: String,
-}
-
-#[derive(Debug, RustcDecodable)]
-struct UploadArgs {
-    flag_metadata: Option<String>,
-    arg_package: String,
-}
-
-#[derive(Debug, RustcDecodable)]
 enum Command {
-	Help, List, Search, Install, Remove, Gensymlinks, Upload
+    Help,
+    List,
+    Search,
+    Install,
+    Remove,
+    Gensymlinks,
+    Upload,
 }
 
 // Coerce String into Command enum
@@ -149,72 +117,124 @@ impl FromStr for Command {
 
     fn from_str(s: &str) -> Result<Command, ()> {
         match s {
-        	"help"			=> Ok(Command::Help),
-        	"list"			=> Ok(Command::List),
-        	"search"		=> Ok(Command::Search),
-        	"install"		=> Ok(Command::Install),
-        	"remove"		=> Ok(Command::Remove),
-        	"gensymlinks"	=> Ok(Command::Gensymlinks),
-        	"upload"		=> Ok(Command::Upload),
-        	_				=> Err(())
+            "help" => Ok(Command::Help),
+            "list" => Ok(Command::List),
+            "search" => Ok(Command::Search),
+            "install" => Ok(Command::Install),
+            "remove" => Ok(Command::Remove),
+            "gensymlinks" => Ok(Command::Gensymlinks),
+            "upload" => Ok(Command::Upload),
+            _ => Err(()),
         }
     }
 }
 
-fn print_fn_help(args: &Vec<String>) {
-	match args.len() {
-		0	=> println!("{}", USAGE_MAIN),
-		1	=> {
-			match args[0].parse::<Command>() {
-				Ok(arg)	=> {
-					let usage = match arg {
-						Command::Help 			=> USAGE_HELP,
-						Command::List 			=> USAGE_LIST,
-						Command::Search 		=> USAGE_SEARCH,
-						Command::Install 		=> USAGE_INSTALL,
-						Command::Remove 		=> USAGE_REMOVE,
-						Command::Gensymlinks 	=> USAGE_GENSYMLINKS,
-						Command::Upload 		=> USAGE_UPLOAD,
-					};
+fn print_help_with_msg(msg: String, help: String, exit_code: i32) {
+    println!("{}", msg);
+    println!("{}", help);
+    process::exit(exit_code);
+}
 
-					println!("{}", usage);
-				},
-				Err(_)	=> println!("Argument provided isn't a valid command")
-			}
-		},
-		_	=> panic!("Help only works with 0-1 commands")
-	}
+fn print_help(help: String, exit_code: i32) {
+    println!("{}", help);
+    process::exit(exit_code);
+}
+
+fn help_command(args: &Vec<String>) {
+    match args.len() {
+        0 => {
+            print_help(String::from(USAGE_MAIN), 0);
+        }
+        1 => {
+            match args[0].parse::<Command>() {
+                Ok(arg) => {
+                    let usage = match arg {
+                        Command::Help => USAGE_HELP,
+                        Command::List => USAGE_LIST,
+                        Command::Search => USAGE_SEARCH,
+                        Command::Install => USAGE_INSTALL,
+                        Command::Remove => USAGE_REMOVE,
+                        Command::Gensymlinks => USAGE_GENSYMLINKS,
+                        Command::Upload => USAGE_UPLOAD,
+                    };
+
+                    print_help(String::from(usage), 0);
+                }
+                Err(_) => {
+                    print_help_with_msg(format!("{:?} isn't a valid command", args[0]),
+                                        String::from(USAGE_MAIN),
+                                        1);
+                }
+            }
+        }
+        _ => {
+            print_help_with_msg(String::from("Help only works with 0 or 1 commands"),
+                                String::from(USAGE_MAIN),
+                                1);
+        }
+    }
+}
+
+fn parse_args(mut args: Vec<String>) {
+    let command = args.remove(0);
+
+    match command.parse::<Command>() {
+        Ok(cmd) => {
+            let args_copy = args.to_vec();
+
+            match cmd {
+                Command::Help => {
+                    help_command(&args);
+                }
+                Command::List => {
+                    let type_index: i32 = args_copy.iter()
+                                                   .position(|p| p == "--type")
+                                                   .map(|x| x as i32)
+                                                   .unwrap_or(-1);
+
+                    let mut command_args = ListArgs { flag_type: None };
+
+                    if type_index > -1 {
+                        let type_str = args_copy.iter()
+                                                .nth(type_index as usize + 1);
+                        match type_str {
+                            Some(t) => command_args.flag_type = Some(t.clone()),
+                            None => {
+                                print_help_with_msg(String::from("Please specify a type after \
+                                                                  the --type flag"),
+                                                    String::from(USAGE_LIST),
+                                                    1);
+                            }
+                        }
+                    }
+
+                    // TODO: Execute command
+                }
+                _ => println!("{:?}", cmd),
+            }
+        }
+        Err(_) => {
+        	// Deal with the version case
+            if command == "-v" || command == "--version" {
+                println!("dcs-get version {}", VERSION);
+                process::exit(0);
+            } else {
+                print_help_with_msg(format!("{:?} is not a valid command", command),
+                                    String::from(USAGE_MAIN),
+                                    1);
+            }
+        }
+    }
 }
 
 fn main() {
-	let args: Args = Docopt::new(USAGE_MAIN)
-                            .and_then(|d| d.options_first(true).decode())
-                            .unwrap_or_else(|e| e.exit());
-    /*if args.flag_v || args.flag_version {
-    	println!("dcs-get version 0.1.0");
-    } else {
-    	let cmd = match args.arg_command {
-    		Some(command)	=> command,
-    		None			=> panic!("This shouldn't be reachable :( please let the developers know on github how you broke dcs-get")
-    	};
+    let mut args: Vec<String> = env::args().collect();
 
-    	match cmd {
-    		Command::Help		=> {
-    			print_fn_help(&args.arg_args)
-    		},
-    		Command::List 		=> {
-    			let list_args: ListArgs = Docopt::new(USAGE_LIST)
-    											 .and_then(|d| d.options_first(true).decode())
-    											 .unwrap_or_else(|e| e.exit());
-    			println!("{:?}", list_args);
-    		},
-    		Command::Install 	=> {
-				let install_args: InstallArgs = Docopt::new(USAGE_INSTALL)
-    												   .and_then(|d| d.options_first(true).decode())
-    												   .unwrap_or_else(|e| e.exit());
-				println!("{:?}", install_args);
-    		},
-    		_	=> println!("{:?}", args.arg_args)
-    	}
-    }*/
+    match args.len() {
+        0 | 1 => println!("{}", USAGE_MAIN),
+        _ => {
+            args.remove(0);
+            parse_args(args);
+        }
+    }
 }
