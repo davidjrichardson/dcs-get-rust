@@ -109,6 +109,11 @@ Usage:
 	dcs-get gensymlinks <package>
 ";
 
+#[derive(Debug, RustcDecodable)]
+struct GensymlinksArgs {
+    arg_package: String,
+}
+
 const USAGE_UPLOAD: &'static str = "
 dcs-get upload: Uploads the given package for approval into the dcs-get repository
 
@@ -216,6 +221,13 @@ fn install_command(args: InstallArgs) {
 }
 
 fn remove_command(args: RemoveArgs) {
+    println!("{:?}", args);
+
+    process::exit(0);
+    // TODO
+}
+
+fn gensymlinks_command(args: GensymlinksArgs) {
     println!("{:?}", args);
 
     process::exit(0);
@@ -346,6 +358,22 @@ fn parse_args(mut args: Vec<String>) {
                     };
 
                     remove_command(command_args);
+                }
+                Command::Gensymlinks => {
+                    // Use the first argument for the query
+                    match args.get(0) {
+                        Some(q) => {
+                            let command_args = GensymlinksArgs { arg_package: q.clone() };
+
+                            gensymlinks_command(command_args);
+                        }
+                        None => {
+                            print_help_with_msg(format!("Please provide a package to generate \
+                                                         symlinks for"),
+                                                String::from(USAGE_GENSYMLINKS),
+                                                1)
+                        }
+                    }
                 }
                 _ => println!("{:?}", cmd),
             }
