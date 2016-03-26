@@ -175,28 +175,34 @@ fn help_command(args: &Vec<String>) {
     }
 }
 
+fn list_command(args: ListArgs) {
+    println!("{:?}", args);
+
+    // TODO
+}
+
 fn parse_args(mut args: Vec<String>) {
     let command = args.remove(0);
 
     match command.parse::<Command>() {
         Ok(cmd) => {
-            let args_copy = args.to_vec();
-
             match cmd {
                 Command::Help => {
                     help_command(&args);
                 }
                 Command::List => {
-                    let type_index: i32 = args_copy.iter()
-                                                   .position(|p| p == "--type")
-                                                   .map(|x| x as i32)
-                                                   .unwrap_or(-1);
+                    // Search for the '--type' flag
+                    let type_index: i32 = args.iter()
+                                              .position(|p| p == "--type")
+                                              .map(|x| x as i32)
+                                              .unwrap_or(-1);
 
                     let mut command_args = ListArgs { flag_type: None };
 
+                    // If it finds the flag, parse it or throw an error if not present
                     if type_index > -1 {
-                        let type_str = args_copy.iter()
-                                                .nth(type_index as usize + 1);
+                        let type_str = args.iter()
+                                           .nth(type_index as usize + 1);
                         match type_str {
                             Some(t) => command_args.flag_type = Some(t.clone()),
                             None => {
@@ -208,13 +214,14 @@ fn parse_args(mut args: Vec<String>) {
                         }
                     }
 
-                    // TODO: Execute command
+                    // Execute the command
+                    list_command(command_args);
                 }
                 _ => println!("{:?}", cmd),
             }
         }
         Err(_) => {
-        	// Deal with the version case
+            // Deal with the version case
             if command == "-v" || command == "--version" {
                 println!("dcs-get version {}", VERSION);
                 process::exit(0);
@@ -233,6 +240,7 @@ fn main() {
     match args.len() {
         0 | 1 => println!("{}", USAGE_MAIN),
         _ => {
+        	// Remove the dcs-get command
             args.remove(0);
             parse_args(args);
         }
